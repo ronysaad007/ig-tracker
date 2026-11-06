@@ -212,6 +212,8 @@ function today(){const d=new Date();return d.getFullYear()+"-"+String(d.getMonth
 function dateStr(ts){if(!ts)return"";return new Date(ts*1000).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})}
 function ago(ts){if(!ts)return"";const a=new Date(ts*1000),n=new Date();const d=Math.round((new Date(n.getFullYear(),n.getMonth(),n.getDate())-new Date(a.getFullYear(),a.getMonth(),a.getDate()))/86400000);
   if(d<1)return"today";if(d<2)return"yesterday";if(d<30)return d+" days ago";if(d<365)return Math.floor(d/30)+" mo ago";const y=Math.floor(d/365);return y+(y>1?" yrs ago":" yr ago")}
+function isoDay(v){if(typeof v==="string"&&/^\d{4}-\d{2}-\d{2}T/.test(v)){const d=new Date(v);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}return v}
+function normalize(st){if(!st)return st;st.log=(st.log||[]).map(r=>[isoDay(r[0]),r[1],r[2]]);st.summary=(st.summary||[]).map(r=>[isoDay(r[0])].concat(r.slice(1)));return st}
 function dayTs(s){const t=Date.parse(s);return isNaN(t)?0:t/1000}
 
 /* ---------- backend ---------- */
@@ -238,7 +240,7 @@ async function refresh(){
   if(!cfg.url){chip("err","Not connected");status("info","Tap ⚙ to connect your Google Sheet.");render();return}
   chip("wait","Syncing…");
   try{
-    stored=await api("GET"); LS.set("state",stored);
+    stored=normalize(await api("GET")); LS.set("state",stored);
     const last=(stored.summary||[]).at(-1);
     chip("ok",last?"Synced · "+last[0]:"Connected · no snapshots");
     if(!pending) status("","");
@@ -383,7 +385,7 @@ async function save(){
   saving=true;$("saveBtn").disabled=true;$("saveBtn").textContent="Saving…";
   try{
     const res=await api("POST",{followers:[...pending.followers],following:[...pending.following]});
-    stored={followers:res.followers,following:res.following,log:res.log,summary:res.summary,names:res.names||(stored&&stored.names)||{}};LS.set("state",stored);
+    stored=normalize({followers:res.followers,following:res.following,log:res.log,summary:res.summary,names:res.names||(stored&&stored.names)||{}});LS.set("state",stored);
     pending=null;
     status("ok",res.first?"First snapshot saved. Upload a new export in a week or two to see who unfollowed you.":"Saved. "+res.lost+" unfollowed you, "+res.gained+" new followers since last time.");
     chip("ok","Synced · "+today());
@@ -415,7 +417,8 @@ if(location.hash.startsWith("#setup=")){
   const p=parseSetup(location.hash);if(p){cfg=p;LS.set("cfg",cfg)}
   history.replaceState(null,"",location.pathname);
 }
-render();refresh();
+window.addEventListener("hashchange",()=>{if(location.hash.startsWith("#setup=")){const p=parseSetup(location.hash);if(p){cfg=p;LS.set("cfg",cfg);try{$("settings").close()}catch{}}history.replaceState(null,"",location.pathname);refresh()}});
+stored=normalize(stored);render();refresh();
 if(!cfg.url){$("sUrl").value="";$("sKey").value="";try{$("settings").showModal()}catch{}}
 if("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(()=>{});
 </script>
