@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>IG Tracker</title>
+<meta name="theme-color" content="#b0186a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="IG Tracker">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: app shell — sticky top bar, KPI strip, tabs + sort/search, scrolling list */
+:root{
+  --bg:#f6f4f7; --surface:#ffffff; --ink:#1d1a22; --muted:#6c6475; --line:#e4dfe8;
+  --accent:#b0186a; --accent-soft:#f7e3ee; --on-accent:#ffffff;
+  --good:#1f7a4d; --good-soft:#e2f2ea; --bad:#b3261e; --bad-soft:#fbe6e4; --warn:#8a5a00; --warn-soft:#fbf0d9;
+  --f-ui:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#141118; --surface:#1d1922; --ink:#efe9f3; --muted:#a59cae; --line:#2f2937;
+  --accent:#ef5fa7; --accent-soft:#3a1d2d; --on-accent:#1d0a14;
+  --good:#5fd19a; --good-soft:#173226; --bad:#ff8a80; --bad-soft:#3a1c1a; --warn:#f2c46b; --warn-soft:#352a14;
+  color-scheme:dark}}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-ui);font-size:15px;line-height:1.5;-webkit-tap-highlight-color:transparent;
+  padding-bottom:calc(32px + env(safe-area-inset-bottom,0px))}
+[hidden]{display:none!important}
+.bar{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);
+  padding:calc(10px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) 10px max(16px,env(safe-area-inset-left,0px))}
+.bar-in,.main{max-width:860px;margin:0 auto}
+.bar-in{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.brand{display:flex;flex-direction:column;gap:3px;line-height:1.15;min-width:0}
+.brand b{font-size:1.1rem;white-space:nowrap}
+.brand b span{font-family:var(--f-mono);font-weight:400;font-size:.8rem;color:var(--accent)}
+.bar-actions{display:flex;gap:8px;align-items:center}
+.main{padding:16px max(16px,env(safe-area-inset-right,0px)) 0 max(16px,env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:14px}
+button,.btn{font-family:inherit;font-size:.9rem;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:9px 14px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.btn.primary,button.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent);font-weight:600}
+button:disabled{opacity:.5;cursor:not-allowed}
+.icon-btn{padding:8px 10px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.btn input{display:none}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:.78rem;color:var(--muted)}
+.chip i{width:8px;height:8px;border-radius:50%;background:var(--muted)}
+.chip.ok i{background:var(--good)} .chip.err i{background:var(--bad)} .chip.wait i{background:var(--warn)}
+.msg{font-size:.88rem;padding:10px 12px;border-radius:10px}
+.msg.ok{background:var(--good-soft);color:var(--good)} .msg.err{background:var(--bad-soft);color:var(--bad)} .msg.info{background:var(--warn-soft);color:var(--warn)}
+.preview{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;background:var(--accent-soft);border:1px solid var(--accent);border-radius:12px;padding:12px 14px}
+.preview p{margin:0;font-size:.9rem;min-width:0;flex:1 1 220px}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+@media (max-width:560px){.kpis{grid-template-columns:repeat(2,1fr)}}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;cursor:pointer}
+.kpi span{font-size:.75rem;color:var(--muted)}
+.kpi strong{font-family:var(--f-mono);font-weight:500;font-size:1.45rem;font-variant-numeric:tabular-nums}
+.kpi.bad strong{color:var(--bad)} .kpi.good strong{color:var(--good)}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px}
+.tabs{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin:-2px -2px 0;padding:2px}
+.tabs::-webkit-scrollbar{display:none}
+.tab{white-space:nowrap;border-radius:999px;padding:7px 12px;font-size:.85rem;background:transparent}
+.tab[aria-selected="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.tab em{font-style:normal;font-family:var(--f-mono);font-size:.76rem;opacity:.75;margin-left:5px}
+.controls{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 4px;align-items:center}
+.controls input,.controls select{font-family:inherit;font-size:.9rem;padding:8px 10px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+.controls input{flex:1 1 160px;min-width:0;font-family:var(--f-mono)}
+.desc{font-size:.82rem;color:var(--muted);margin:6px 0 8px}
+ul.users{list-style:none;margin:0;padding:0}
+ul.users li{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 2px;border-bottom:1px solid var(--line);min-width:0}
+ul.users li:last-child{border-bottom:0}
+ul.users .rank{font-family:var(--f-mono);font-size:.72rem;color:var(--muted);min-width:2.2em;flex:none;font-variant-numeric:tabular-nums}
+ul.users a{flex:1;min-width:0;font-family:var(--f-mono);font-size:.9rem;color:var(--ink);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ul.users a:active,ul.users a:hover{color:var(--accent)}
+ul.users time{font-size:.75rem;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums;text-align:right}
+ul.users time small{display:block;font-size:.68rem;opacity:.8}
+.empty{color:var(--muted);text-align:center;padding:28px 8px;font-size:.92rem}
+.more{width:100%;justify-content:center;margin-top:10px}
+.tablewrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:.85rem}
+th,td{padding:8px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+th{color:var(--muted);font-weight:500;font-size:.75rem;text-transform:uppercase;letter-spacing:.04em}
+td.n{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+td.u{font-family:var(--f-mono)}
+.pill{font-size:.72rem;padding:2px 8px;border-radius:999px}
+.pill.lost{background:var(--bad-soft);color:var(--bad)} .pill.new{background:var(--good-soft);color:var(--good)}
+.pill.unf{background:var(--warn-soft);color:var(--warn)} .pill.fol{background:var(--accent-soft);color:var(--accent)}
+h2{font-size:1rem;margin:4px 0 8px}
+dialog{border:1px solid var(--line);border-radius:16px;background:var(--surface);color:var(--ink);padding:20px;width:min(440px,calc(100vw - 32px))}
+dialog::backdrop{background:rgba(0,0,0,.45)}
+dialog label{display:block;font-size:.82rem;color:var(--muted);margin:12px 0 4px}
+dialog input{width:100%;font-family:var(--f-mono);font-size:.85rem;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+dialog .row{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+dialog h3{margin:0 0 4px}
+dialog p{margin:0;font-size:.85rem;color:var(--muted)}
+.steps{font-size:.82rem;color:var(--muted);padding-left:18px;margin:8px 0 0}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<header class="bar">
+  <div class="bar-in">
+    <div class="brand"><b>IG Tracker <span>@rony.saad.art</span></b><span class="chip wait" id="chip"><i></i><span id="chipTxt">Connecting…</span></span></div>
+    <div class="bar-actions">
+      <label class="btn primary" for="fileIn">Upload<input type="file" id="fileIn" accept=".zip,.json,application/zip" multiple></label>
+      <button class="icon-btn" id="settingsBtn" aria-label="Settings">⚙</button>
+    </div>
+  </div>
+</header>
+
+<main class="main">
+  <div id="status" class="msg" hidden></div>
+
+  <div class="preview" id="preview" hidden>
+    <p id="previewTxt"></p>
+    <div style="display:flex;gap:8px">
+      <button id="discardBtn">Discard</button>
+      <button class="primary" id="saveBtn">Save snapshot</button>
+    </div>
+  </div>
+
+  <section class="kpis">
+    <button class="kpi" data-go="followers"><span>Followers</span><strong id="kF">–</strong></button>
+    <button class="kpi" data-go="following"><span>Following</span><strong id="kG">–</strong></button>
+    <button class="kpi bad" data-go="nfb"><span>Don't follow back</span><strong id="kN">–</strong></button>
+    <button class="kpi bad" data-go="lost"><span>Unfollowed you</span><strong id="kL">–</strong></button>
+  </section>
+
+  <section class="panel">
+    <div class="tabs" role="tablist" id="tabs"></div>
+    <p class="desc" id="desc"></p>
+    <div class="controls">
+      <input type="search" id="q" placeholder="Search username" aria-label="Search">
+      <select id="sort" aria-label="Sort">
+        <option value="new">Newest first</option>
+        <option value="old">Oldest first</option>
+        <option value="az">A → Z</option>
+      </select>
+      <button id="copyBtn">Copy</button>
+    </div>
+    <ul class="users" id="list"></ul>
+    <button class="more" id="moreBtn" hidden>Show more</button>
+  </section>
+
+  <section class="panel" id="historyPanel">
+    <h2>Snapshots</h2>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Date</th><th>Followers</th><th>Following</th><th>New</th><th>Lost</th><th>No follow-back</th></tr></thead>
+      <tbody id="sumBody"></tbody>
+    </table></div>
+    <h2 style="margin-top:16px">Activity</h2>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Date</th><th>Account</th><th>Event</th></tr></thead>
+      <tbody id="logBody"></tbody>
+    </table></div>
+  </section>
+
+  <section class="panel">
+    <h2>How to get the export</h2>
+    <ol class="steps">
+      <li>Instagram → Accounts Center → Your information and permissions → Download your information</li>
+      <li>Some of your information → <b>Followers and following</b> → Format <b>JSON</b> → Date range <b>All time</b></li>
+      <li>Download the ZIP from the email, tap <b>Upload export</b>, check the preview, then <b>Save snapshot</b></li>
+    </ol>
+  </section>
+</main>
+
+<dialog id="settings">
+  <form method="dialog" id="settingsForm">
+    <h3>Connect your Google Sheet</h3>
+    <p>Paste the Apps Script web app URL and your key. They're stored on this device only.</p>
+    <label for="sUrl">Web app URL</label>
+    <input id="sUrl" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off" required>
+    <label for="sKey">Key</label>
+    <input id="sKey" placeholder="Your key" autocomplete="off" required>
+    <div class="row">
+      <button value="cancel" formnovalidate>Cancel</button>
+      <button class="primary" value="save">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="jszip.min.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const LS = {get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch{return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}}};
+const EV = {lost:"Unfollowed you", new:"Followed you", unf:"You unfollowed", fol:"You followed"};
+const PILL = {[EV.lost]:"lost",[EV.new]:"new",[EV.unf]:"unf",[EV.fol]:"fol"};
+
+let cfg = LS.get("cfg", {url:"", key:""});
+let stored = LS.get("state", null);   // {followers:[[u,ts]], following, log, summary}
+let pending = null;                   // {followers:Map, following:Map, partial}
+let tab = LS.get("tab","followers"), sort = LS.get("sort","new"), shown = 200;
+
+/* ---------- helpers ---------- */
+function chip(c,t){$("chip").className="chip "+c;$("chipTxt").textContent=t}
+function status(k,t){const s=$("status");s.hidden=!t;s.className="msg "+k;s.textContent=t||""}
+function toMap(a){return new Map((a||[]).map(r=>[String(r[0]).toLowerCase(),Number(r[1])||0]))}
+function minus(a,b){return [...a.keys()].filter(k=>!b.has(k))}
+function today(){const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")}
+function dateStr(ts){if(!ts)return"";return new Date(ts*1000).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})}
+function ago(ts){if(!ts)return"";const a=new Date(ts*1000),n=new Date();const d=Math.round((new Date(n.getFullYear(),n.getMonth(),n.getDate())-new Date(a.getFullYear(),a.getMonth(),a.getDate()))/86400000);
+  if(d<1)return"today";if(d<2)return"yesterday";if(d<30)return d+" days ago";if(d<365)return Math.floor(d/30)+" mo ago";const y=Math.floor(d/365);return y+(y>1?" yrs ago":" yr ago")}
+function dayTs(s){const t=Date.parse(s);return isNaN(t)?0:t/1000}
+
+/* ---------- backend ---------- */
+async function api(method, body){
+  if(!cfg.url||!cfg.key) throw {code:"no_cfg"};
+  let r;
+  try{
+    r = method==="GET"
+      ? await fetch(cfg.url+(cfg.url.includes("?")?"&":"?")+"key="+encodeURIComponent(cfg.key),{redirect:"follow"})
+      : await fetch(cfg.url,{method:"POST",redirect:"follow",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(Object.assign({key:cfg.key},body))});
+  }catch(e){throw {code:"offline"}}
+  let j; try{j=await r.json()}catch(e){throw {code:"bad_response"}}
+  if(j.error) throw {code:j.error};
+  return j;
+}
+function errText(e){
+  return ({no_cfg:"Connect your Google Sheet first (⚙).",
+    offline:"Can't reach Google right now. Showing the last saved data.",
+    bad_key:"The key doesn't match the one in Apps Script. Check it in ⚙.",
+    bad_response:"The web app URL isn't answering correctly. Make sure you pasted the /exec URL and access is set to Anyone.",
+    empty:"The export had no followers to save."})[e&&e.code]||("Something went wrong ("+(e&&e.code||"unknown")+").");
+}
+async function refresh(){
+  if(!cfg.url){chip("err","Not connected");status("info","Tap ⚙ to connect your Google Sheet.");render();return}
+  chip("wait","Syncing…");
+  try{
+    stored=await api("GET"); LS.set("state",stored);
+    const last=(stored.summary||[]).at(-1);
+    chip("ok",last?"Synced · "+last[0]:"Connected · no snapshots");
+    if(!pending) status("","");
+  }catch(e){chip("err",e.code==="offline"?"Offline":"Sync failed");status("err",errText(e))}
+  render();
+}
+
+/* ---------- export parsing ---------- */
+function userFrom(it){
+  const s=(it&&it.string_list_data&&it.string_list_data[0])||{};
+  let u=s.value||it.title||"";
+  if(!u&&s.href){const m=s.href.match(/instagram\.com\/(?:_u\/)?([^/?#]+)/i);if(m)u=m[1]}
+  return [String(u).trim().toLowerCase(), s.timestamp||0];
+}
+function kindOf(name){const n=name.toLowerCase().split("/").pop();
+  if(/^followers(_\d+)?\.json$/.test(n))return"followers";if(/^following\.json$/.test(n))return"following";return null}
+function collect(json,kind,out){
+  let arr=Array.isArray(json)?json:null;
+  if(!arr&&json&&typeof json==="object"){const k=Object.keys(json).find(k=>Array.isArray(json[k])&&/follow/i.test(k));if(k)arr=json[k]}
+  if(!arr||!kind)return;
+  for(const it of arr){const [u,ts]=userFrom(it);if(u)out[kind].set(u,ts)}
+}
+async function handleFiles(files){
+  const out={followers:new Map(),following:new Map()};
+  status("info","Reading the export…");
+  try{
+    for(const f of files){
+      if(/\.zip$/i.test(f.name)||f.type.includes("zip")){
+        const zip=await JSZip.loadAsync(f);
+        for(const z of Object.values(zip.files)){const k=!z.dir&&kindOf(z.name);if(k)collect(JSON.parse(await z.async("string")),k,out)}
+      }else{const k=kindOf(f.name);if(k)collect(JSON.parse(await f.text()),k,out)}
+    }
+  }catch(e){status("err","Couldn't read that file. Upload the ZIP from Instagram (JSON format).");return}
+  if(!out.followers.size||!out.following.size){
+    status("err",!out.followers.size&&!out.following.size?"No follower lists found. Pick “Followers and following” when you request the export."
+      :!out.followers.size?"followers_1.json is missing from the export.":"following.json is missing from the export.");return}
+  const mn=m=>Math.min(...[...m.values()].filter(Boolean));
+  const fMin=mn(out.followers),gMin=mn(out.following);
+  out.partial=isFinite(fMin)&&fMin>Date.now()/1000-400*86400&&isFinite(gMin)&&gMin<fMin-30*86400;
+  pending=out; status("",""); tab=tab==="history"?"followers":tab; render();
+  if(out.partial) status("err","This export only covers the last year ("+out.followers.size+" followers). Request it again with Date range = All time. It can't be saved.");
+}
+
+/* ---------- views ---------- */
+function model(){
+  const base={F:toMap(stored&&stored.followers),G:toMap(stored&&stored.following)};
+  const log=(stored&&stored.log)||[];
+  const cur=pending?{F:pending.followers,G:pending.following}:base;
+  const hasBase=base.F.size>0;
+  const evList=ev=>log.filter(r=>r[2]===ev).map(r=>({u:String(r[1]),ts:dayTs(r[0]),day:r[0]}));
+  let lost,gained;
+  if(pending&&hasBase){
+    lost=minus(base.F,cur.F).map(u=>({u,ts:Date.now()/1000,day:"now"}));
+    gained=minus(cur.F,base.F).map(u=>({u,ts:cur.F.get(u)}));
+  }else{lost=evList(EV.lost);gained=evList(EV.new)}
+  return {
+    followers:[...cur.F].map(([u,ts])=>({u,ts})),
+    following:[...cur.G].map(([u,ts])=>({u,ts})),
+    nfb:minus(cur.G,cur.F).map(u=>({u,ts:cur.G.get(u)})),
+    fans:minus(cur.F,cur.G).map(u=>({u,ts:cur.F.get(u)})),
+    lost,gained,hasBase
+  };
+}
+const TABS=[
+  ["followers","Followers","Everyone following you. Date = when they followed you."],
+  ["nfb","Don't follow back","You follow them, they don't follow you. Date = when you followed them."],
+  ["lost","Unfollowed you","Were following you in an earlier snapshot, now gone. Date = snapshot where it was spotted."],
+  ["gained","New followers","Followed you since the previous snapshot."],
+  ["fans","You don't follow back","They follow you, you don't follow them. Date = when they followed you."],
+  ["following","Following","Everyone you follow. Date = when you followed them."]
+];
+function items(m){
+  const q=$("q").value.trim().toLowerCase();
+  let a=(m[tab]||[]).filter(x=>!q||x.u.includes(q));
+  if(sort==="az")a.sort((x,y)=>x.u.localeCompare(y.u));
+  else if(sort==="old")a.sort((x,y)=>(x.ts||Infinity)-(y.ts||Infinity));
+  else a.sort((x,y)=>(y.ts||0)-(x.ts||0));
+  return a;
+}
+function render(){
+  const m=model();
+  $("kF").textContent=m.followers.length||"–"; $("kG").textContent=m.following.length||"–";
+  $("kN").textContent=m.followers.length?m.nfb.length:"–"; $("kL").textContent=m.hasBase||m.lost.length?m.lost.length:"–";
+  // preview banner
+  $("preview").hidden=!pending;
+  if(pending){
+    $("saveBtn").disabled=!!pending.partial||!cfg.url;
+    $("previewTxt").textContent=pending.partial?"Incomplete export. Request it again with All time."
+      : m.hasBase?("Preview, not saved: "+m.lost.length+" unfollowed you, "+m.gained.length+" new since the last snapshot.")
+      : "Preview, not saved. This will be your first snapshot and the starting point for future comparisons.";
+  }
+  // tabs
+  const t=$("tabs");t.innerHTML="";
+  for(const [k,label] of TABS){
+    const b=document.createElement("button");b.className="tab";b.setAttribute("role","tab");b.setAttribute("aria-selected",k===tab);
+    b.textContent=label;const em=document.createElement("em");em.textContent=(m[k]||[]).length;b.appendChild(em);
+    b.onclick=()=>{tab=k;shown=200;LS.set("tab",tab);render()};t.appendChild(b);
+  }
+  $("desc").textContent=TABS.find(x=>x[0]===tab)[2];
+  $("sort").value=sort;
+  // list
+  const ul=$("list");ul.innerHTML="";
+  const all=items(m);
+  if(!m.followers.length&&!pending){ul.innerHTML='<li class="empty">Upload your Instagram export to see your lists.</li>';$("moreBtn").hidden=true;}
+  else if((tab==="lost"||tab==="gained")&&!m.hasBase&&!all.length){ul.innerHTML='<li class="empty">This list fills in from your second snapshot. Save this one, then upload a new export in a week or two.</li>';$("moreBtn").hidden=true;}
+  else if(!all.length){ul.innerHTML='<li class="empty">Nobody here.</li>';$("moreBtn").hidden=true;}
+  else{
+    const frag=document.createDocumentFragment();
+    all.slice(0,shown).forEach((x,i)=>{
+      const li=document.createElement("li");
+      const r=document.createElement("span");r.className="rank";r.textContent=i+1;
+      const a=document.createElement("a");a.href="https://www.instagram.com/"+encodeURIComponent(x.u)+"/";a.target="_blank";a.rel="noopener";a.textContent="@"+x.u;
+      const tm=document.createElement("time");
+      if(x.day==="now"){tm.textContent="this upload"}
+      else if(x.ts){tm.textContent=dateStr(x.ts);const s=document.createElement("small");s.textContent=ago(x.ts);tm.appendChild(s)}
+      li.append(r,a,tm);frag.appendChild(li);
+    });
+    ul.appendChild(frag);
+    $("moreBtn").hidden=all.length<=shown;$("moreBtn").textContent="Show more ("+(all.length-shown)+" left)";
+  }
+  // history
+  const sb=$("sumBody"),lb=$("logBody");sb.innerHTML="";lb.innerHTML="";
+  const sum=(stored&&stored.summary)||[],log=(stored&&stored.log)||[];
+  if(!sum.length)sb.innerHTML='<tr><td colspan="6" class="empty">No snapshots saved yet.</td></tr>';
+  [...sum].reverse().forEach(r=>{const tr=document.createElement("tr");r.slice(0,6).forEach((v,i)=>{const td=document.createElement("td");td.textContent=v;if(i)td.className="n";tr.appendChild(td)});sb.appendChild(tr)});
+  if(!log.length)lb.innerHTML='<tr><td colspan="3" class="empty">Changes show up from your second snapshot.</td></tr>';
+  log.slice(-200).reverse().forEach(r=>{const tr=document.createElement("tr");
+    const a=document.createElement("td");a.className="n";a.textContent=r[0];
+    const b=document.createElement("td");b.className="u";const l=document.createElement("a");l.href="https://www.instagram.com/"+encodeURIComponent(r[1])+"/";l.target="_blank";l.rel="noopener";l.style.color="inherit";l.textContent="@"+r[1];b.appendChild(l);
+    const c=document.createElement("td");const p=document.createElement("span");p.className="pill "+(PILL[r[2]]||"");p.textContent=r[2];c.appendChild(p);
+    tr.append(a,b,c);lb.appendChild(tr)});
+}
+
+/* ---------- save ---------- */
+let saving=false;
+async function save(){
+  if(!pending||pending.partial||saving)return;
+  saving=true;$("saveBtn").disabled=true;$("saveBtn").textContent="Saving…";
+  try{
+    const res=await api("POST",{followers:[...pending.followers],following:[...pending.following]});
+    stored={followers:res.followers,following:res.following,log:res.log,summary:res.summary};LS.set("state",stored);
+    pending=null;
+    status("ok",res.first?"First snapshot saved. Upload a new export in a week or two to see who unfollowed you.":"Saved. "+res.lost+" unfollowed you, "+res.gained+" new followers since last time.");
+    chip("ok","Synced · "+today());
+  }catch(e){status("err",errText(e)+" Open the sheet to check before you try again.")}
+  saving=false;$("saveBtn").textContent="Save snapshot";render();
+}
+
+/* ---------- wiring ---------- */
+$("fileIn").addEventListener("change",e=>{if(e.target.files.length)handleFiles([...e.target.files]);e.target.value=""});
+$("q").addEventListener("input",()=>{shown=200;render()});
+$("sort").addEventListener("change",e=>{sort=e.target.value;LS.set("sort",sort);render()});
+$("moreBtn").addEventListener("click",()=>{shown+=300;render()});
+$("saveBtn").addEventListener("click",save);
+$("discardBtn").addEventListener("click",()=>{pending=null;status("","");render()});
+document.querySelectorAll(".kpi").forEach(k=>k.addEventListener("click",()=>{tab=k.dataset.go;shown=200;LS.set("tab",tab);render();$("tabs").scrollIntoView({behavior:"smooth",block:"start"})}));
+$("copyBtn").addEventListener("click",async()=>{
+  const txt=items(model()).map(x=>"@"+x.u).join("\n");if(!txt)return;
+  try{await navigator.clipboard.writeText(txt);$("copyBtn").textContent="Copied"}catch{$("copyBtn").textContent="Copy failed"}
+  setTimeout(()=>$("copyBtn").textContent="Copy",1500)});
+$("settingsBtn").addEventListener("click",()=>{$("sUrl").value=cfg.url;$("sKey").value=cfg.key;$("settings").showModal()});
+$("settings").addEventListener("close",()=>{
+  if($("settings").returnValue!=="save")return;
+  cfg={url:$("sUrl").value.trim(),key:$("sKey").value.trim()};LS.set("cfg",cfg);refresh();
+});
+// one-time setup link: …/#setup=<url>|<key>
+if(location.hash.startsWith("#setup=")){
+  const [u,k]=decodeURIComponent(location.hash.slice(7)).split("|");
+  if(u&&k){cfg={url:u,key:k};LS.set("cfg",cfg)}
+  history.replaceState(null,"",location.pathname);
+}
+render();refresh();
+if("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(()=>{});
+</script>
+</body>
+</html>
