@@ -76,8 +76,11 @@ ul.users{list-style:none;margin:0;padding:0}
 ul.users li{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 2px;border-bottom:1px solid var(--line);min-width:0}
 ul.users li:last-child{border-bottom:0}
 ul.users .rank{font-family:var(--f-mono);font-size:.72rem;color:var(--muted);min-width:2.2em;flex:none;font-variant-numeric:tabular-nums}
-ul.users a{flex:1;min-width:0;font-family:var(--f-mono);font-size:.9rem;color:var(--ink);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-ul.users a:active,ul.users a:hover{color:var(--accent)}
+ul.users a{flex:1;min-width:0;color:var(--ink);text-decoration:none;display:flex;flex-direction:column;gap:1px}
+ul.users a .nm{font-weight:600;font-size:.92rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ul.users a .un{font-family:var(--f-mono);font-size:.8rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ul.users a .vf{color:var(--accent);font-size:.75rem;margin-left:4px}
+ul.users a:active .nm,ul.users a:hover .nm,ul.users a:hover .un{color:var(--accent)}
 ul.users time{font-size:.75rem;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums;text-align:right}
 ul.users time small{display:block;font-size:.68rem;opacity:.8}
 .empty{color:var(--muted);text-align:center;padding:28px 8px;font-size:.92rem}
@@ -136,7 +139,7 @@ dialog p{margin:0;font-size:.85rem;color:var(--muted)}
     <div class="tabs" role="tablist" id="tabs"></div>
     <p class="desc" id="desc"></p>
     <div class="controls">
-      <input type="search" id="q" placeholder="Search username" aria-label="Search">
+      <input type="search" id="q" placeholder="Search name or username" aria-label="Search">
       <select id="sort" aria-label="Sort">
         <option value="new">Newest first</option>
         <option value="old">Oldest first</option>
@@ -174,11 +177,13 @@ dialog p{margin:0;font-size:.85rem;color:var(--muted)}
 <dialog id="settings">
   <form method="dialog" id="settingsForm">
     <h3>Connect your Google Sheet</h3>
-    <p>Paste the Apps Script web app URL and your key. They're stored on this device only.</p>
-    <label for="sUrl">Web app URL</label>
-    <input id="sUrl" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off" required>
+    <p>Paste your setup link once. It's stored on this device only.</p>
+    <label for="sLink">Setup link</label>
+    <input id="sLink" placeholder="Paste the setup link here" autocomplete="off">
+    <label for="sUrl">or Web app URL</label>
+    <input id="sUrl" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off">
     <label for="sKey">Key</label>
-    <input id="sKey" placeholder="Your key" autocomplete="off" required>
+    <input id="sKey" placeholder="Your key" autocomplete="off">
     <div class="row">
       <button value="cancel" formnovalidate>Cancel</button>
       <button class="primary" value="save">Save</button>
@@ -307,7 +312,8 @@ const TABS=[
 ];
 function items(m){
   const q=$("q").value.trim().toLowerCase();
-  let a=(m[tab]||[]).filter(x=>!q||x.u.includes(q));
+  const N=(stored&&stored.names)||{};
+  let a=(m[tab]||[]).filter(x=>!q||x.u.includes(q)||((N[x.u]||[''])[0].toLowerCase().includes(q)));
   if(sort==="az")a.sort((x,y)=>x.u.localeCompare(y.u));
   else if(sort==="old")a.sort((x,y)=>(x.ts||Infinity)-(y.ts||Infinity));
   else a.sort((x,y)=>(y.ts||0)-(x.ts||0));
@@ -341,11 +347,14 @@ function render(){
   else if((tab==="lost"||tab==="gained")&&!m.hasBase&&!all.length){ul.innerHTML='<li class="empty">This list fills in from your second snapshot. Save this one, then upload a new export in a week or two.</li>';$("moreBtn").hidden=true;}
   else if(!all.length){ul.innerHTML='<li class="empty">Nobody here.</li>';$("moreBtn").hidden=true;}
   else{
-    const frag=document.createDocumentFragment();
+    const frag=document.createDocumentFragment();const NM=(stored&&stored.names)||{};
     all.slice(0,shown).forEach((x,i)=>{
       const li=document.createElement("li");
       const r=document.createElement("span");r.className="rank";r.textContent=i+1;
-      const a=document.createElement("a");a.href="https://www.instagram.com/"+encodeURIComponent(x.u)+"/";a.target="_blank";a.rel="noopener";a.textContent="@"+x.u;
+      const a=document.createElement("a");a.href="https://www.instagram.com/"+encodeURIComponent(x.u)+"/";a.target="_blank";a.rel="noopener";
+      const info=NM[x.u];const nm=document.createElement("span");nm.className="nm";nm.textContent=(info&&info[0])||"@"+x.u;
+      if(info&&info[1]){const v=document.createElement("span");v.className="vf";v.textContent="✓ verified";nm.appendChild(v)}
+      a.appendChild(nm);if(info&&info[0]){const un=document.createElement("span");un.className="un";un.textContent="@"+x.u;a.appendChild(un)}
       const tm=document.createElement("time");
       if(x.day==="now"){tm.textContent="this upload"}
       else if(x.ts){tm.textContent=dateStr(x.ts);const s=document.createElement("small");s.textContent=ago(x.ts);tm.appendChild(s)}
@@ -374,7 +383,7 @@ async function save(){
   saving=true;$("saveBtn").disabled=true;$("saveBtn").textContent="Saving…";
   try{
     const res=await api("POST",{followers:[...pending.followers],following:[...pending.following]});
-    stored={followers:res.followers,following:res.following,log:res.log,summary:res.summary};LS.set("state",stored);
+    stored={followers:res.followers,following:res.following,log:res.log,summary:res.summary,names:res.names||(stored&&stored.names)||{}};LS.set("state",stored);
     pending=null;
     status("ok",res.first?"First snapshot saved. Upload a new export in a week or two to see who unfollowed you.":"Saved. "+res.lost+" unfollowed you, "+res.gained+" new followers since last time.");
     chip("ok","Synced · "+today());
@@ -397,15 +406,17 @@ $("copyBtn").addEventListener("click",async()=>{
 $("settingsBtn").addEventListener("click",()=>{$("sUrl").value=cfg.url;$("sKey").value=cfg.key;$("settings").showModal()});
 $("settings").addEventListener("close",()=>{
   if($("settings").returnValue!=="save")return;
-  cfg={url:$("sUrl").value.trim(),key:$("sKey").value.trim()};LS.set("cfg",cfg);refresh();
+  const link=$("sLink").value.trim();const p=link&&parseSetup(link);
+  cfg=p||{url:$("sUrl").value.trim(),key:$("sKey").value.trim()};LS.set("cfg",cfg);$("sLink").value="";refresh();
 });
 // one-time setup link: …/#setup=<url>|<key>
+function parseSetup(t){const i=t.indexOf("#setup=");if(i<0)return null;const [u,k]=decodeURIComponent(t.slice(i+7)).split("|");return u&&k?{url:u.trim(),key:k.trim()}:null}
 if(location.hash.startsWith("#setup=")){
-  const [u,k]=decodeURIComponent(location.hash.slice(7)).split("|");
-  if(u&&k){cfg={url:u,key:k};LS.set("cfg",cfg)}
+  const p=parseSetup(location.hash);if(p){cfg=p;LS.set("cfg",cfg)}
   history.replaceState(null,"",location.pathname);
 }
 render();refresh();
+if(!cfg.url){$("sUrl").value="";$("sKey").value="";try{$("settings").showModal()}catch{}}
 if("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(()=>{});
 </script>
 </body>
